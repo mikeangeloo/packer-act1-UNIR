@@ -1,0 +1,92 @@
+{
+  "variables": {
+    "aws_access_key": "{{env `AWS_ACCESS_KEY`}}",
+    "aws_secret_key": "{{env `AWS_SECRET_KEY`}}",
+
+    "az_client_id": "{{env `AZ_CLIENT_ID`}}",
+    "az_client_secret": "{{env `AZ_CLIENT_SECRET`}}",
+    "az_tenant_id": "{{env `AZ_TENANT_ID`}}",
+    "az_subscription_id": "{{env `AZ_SUBSCRIPTION_ID`}}",
+    "az_packer_resource_group": "{{env `AZ_PACKER_RESOURCE_GROUP`}}"
+  },
+  "builders": [
+    {
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_access_key`}}",
+      "secret_key": "{{user `aws_secret_key`}}",
+      "region": "us-east-2",
+      "ami_name": "ubuntu-node-packer-v1",
+      "source_ami": "ami-0fe21a9f6922d5c6a",
+      "name": "aws-builder-UNIR",
+      "tags": {
+        "Name": "packerAct1-UNIR"
+      },
+      "source_ami_filter": {
+        "filters": {
+          "virtualization-type": "hvm",
+          "root-device-type": "ebs"
+        }
+      },
+      "instance_type": "t2.micro",
+      "ssh_username": "ubuntu"
+    },
+    {
+      "type": "azure-arm",
+      "name": "azure-builder-UNIR",
+      "client_id": "{{user `az_client_id`}}",
+      "client_secret": "{{user `az_client_secret`}}",
+      "tenant_id": "{{user `az_tenant_id`}}",
+      "subscription_id": "{{user `az_subscription_id`}}",
+      "managed_image_resource_group_name": "{{user `az_packer_resource_group`}}",
+      "managed_image_name": "myPackerImage",
+      "os_type": "Linux",
+      "image_publisher": "canonical",
+      "image_offer": "0001-com-ubuntu-server-jammy",
+      "image_sku": "22_04-lts-gen2",
+      "azure_tags": {
+        "dept": "Engineering",
+        "task": "Image deployment"
+      },
+      "location": "East US",
+      "vm_size": "Standard_B1s"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "file",
+      "source": "./app/demo-node.js",
+      "destination": "/tmp/demo-node.js"
+    },
+    {
+      "type": "file",
+      "source": "./app/nginx/demo-node.conf",
+      "destination": "/tmp/demo-node.conf"
+    },
+    {
+      "type": "shell",
+      "script": "./scripts/ubuntu-server-setup.sh"
+    }
+  ],
+  "post-processors": [
+    {
+      "type": "manifest",
+      "output": "aws_output.json",
+      "only": ["aws-builder-UNIR"]
+    },
+    {
+      "type": "manifest",
+      "output": "az_output.json",
+      "only": ["azure-builder-UNIR"]
+    },
+    {
+      "type": "shell-local",
+      "inline": ["bash ./scripts/deploy-instances.sh aws"],
+      "only": ["aws-builder-UNIR"]
+    },
+    {
+      "type": "shell-local",
+      "inline": ["bash ./scripts/deploy-instances.sh azure"],
+      "only": ["azure-builder-UNIR"]
+    }
+  ]
+}
